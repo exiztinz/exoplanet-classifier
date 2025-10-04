@@ -1,0 +1,21 @@
+# Python env & caches
+.venv/
+__pycache__/
+*.pyc
+
+# App caches / downloads
+cache/
+.lightkurve/
+*.npy
+*.npz
+*.fits
+
+# Models & artifacts (keep out of repo; use releases/LFS if you must)
+models/*.pt
+models/checkpoints/
+models/*.joblib
+models/feature_list.csv
+
+# OS / editor
+.DS_Store
+.env
