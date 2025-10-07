@@ -226,27 +226,48 @@ def train(n: int = 3000, seed: int = 42, length: int = DEFAULT_LENGTH, batch_siz
 
     assert best_state is not None, "No best state captured"
     print("Training complete. Saving model...")
-    ckpt = {"state_dict": best_state, "classes": model.classes, "length": model.length}
+
+    # Save a timestamped archive for this run and include val_loss for cross-run comparison
+    ckpt = {
+        "state_dict": best_state,
+        "classes": model.classes,
+        "length": model.length,
+        "val_loss": float(best_val),
+    }
+
     ts = time.strftime("%Y%m%d_%H%M%S")
     out_ts = MODELS_DIR / f"cnn_{ts}.pt"
     torch.save(ckpt, out_ts)
     print("Saved", out_ts)
 
-    # also (optionally) update the main pointer only if better than previous
+    # Update cnn_best.pt only if this run's validation loss improved
     best_path = MODELS_DIR / "cnn_best.pt"
-    try:
-        # heuristic: if we tracked best_val, prefer the new one; otherwise always update
-        torch.save(ckpt, best_path)
-        print("Updated", best_path)
-    except Exception as e:
-        print("Could not update cnn_best.pt:", e)
+    update_best = True
+    prev_loss = float("inf")
+    if best_path.exists():
+        try:
+            prev = torch.load(best_path, map_location="cpu")
+            prev_loss = float(prev.get("val_loss", float("inf")))
+            update_best = best_val < prev_loss
+        except Exception as e:
+            print("Warning: could not read existing cnn_best.pt:", e)
+            update_best = True
 
-    # keep the legacy name for the server, but make it a copy of the best
-    try:
-        torch.save(ckpt, MODELS_DIR / "cnn.pt")
-        print("Updated models/cnn.pt")
-    except Exception as e:
-        print("Could not update cnn.pt:", e)
+    if update_best:
+        try:
+            torch.save(ckpt, best_path)
+            print(f"Updated {best_path} (val_loss={best_val:.4f})")
+        except Exception as e:
+            print("Could not update cnn_best.pt:", e)
+
+        # Keep the serving alias in sync with the new best
+        try:
+            torch.save(ckpt, MODELS_DIR / "cnn.pt")
+            print("Updated models/cnn.pt")
+        except Exception as e:
+            print("Could not update cnn.pt:", e)
+    else:
+        print(f"Kept existing {best_path} (prev={prev_loss:.4f} <= new={best_val:.4f})")
 
 if __name__ == "__main__":
     import argparse
